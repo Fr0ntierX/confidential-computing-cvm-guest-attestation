@@ -1091,10 +1091,8 @@ bool Util::ReleaseKey(const std::string &attestation_url,
     {
     case EVP_PKEY_RSA:
     case EVP_PKEY_RSA2:
-        std::cout << "The released key is of type RSA. It can be used for wrapKey/unwrapKey operations." << std::endl;
         return true;
     case EVP_PKEY_EC:
-        std::cout << "The released key is of type EC. It can be used for sign/verify operations." << std::endl;
         return true;
     default:
         std::cout << "The released key is of type " << EVP_PKEY_base_id(pkey) << ". Not sure what operations are supported." << std::endl;
