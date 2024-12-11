@@ -835,6 +835,7 @@ bool Util::doSKR(const std::string &attestation_url,
             }
             BIO_free(bio_key);
 
+            printf(Util::binary_to_base64url(privateKeyVec).c_str());
             return true;
         }
 
