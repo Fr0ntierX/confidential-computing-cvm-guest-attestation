@@ -262,7 +262,9 @@ public:
                       const std::string &nonce,
                       std::string KEKUrl,
                       EVP_PKEY **pkey,
-                      const Util::AkvCredentialSource &akv_credential_source);
+                      const Util::AkvCredentialSource &akv_credential_source,
+                      const std::string &external_maa_token = ""
+                    );
 
     /// <summary>
     /// Wrap the symmetric key with the public key of the key encryption key (KEK).
@@ -277,7 +279,9 @@ public:
                                const std::string &nonce,
                                const std::string &plainText,
                                const std::string &key_enc_key,
-                               const Util::AkvCredentialSource &akv_credential_source);
+                               const Util::AkvCredentialSource &akv_credential_source,
+                               const std::string &external_maa_token = ""
+                            );
 
     /// <summary>
     /// Unwrap the symmetric key using the private key of the key encryption key (KEK).
@@ -292,7 +296,9 @@ public:
                                  const std::string &nonce,
                                  const std::string &cipherText,
                                  const std::string &key_enc_key,
-                                 const Util::AkvCredentialSource &akv_credential_source);
+                                 const Util::AkvCredentialSource &akv_credential_source,
+                                 const std::string &external_maa_token = "" 
+                                );
 
     /// <summary>
     /// Release the RSA or EC private key from KMS.
@@ -305,5 +311,7 @@ public:
     static bool ReleaseKey(const std::string &attestation_url,
                            const std::string &nonce,
                            const std::string &key_enc_key,
-                           const Util::AkvCredentialSource &akv_credential_source);
+                           const Util::AkvCredentialSource &akv_credential_source,
+                           const std::string &external_maa_token = ""
+                        );
 };

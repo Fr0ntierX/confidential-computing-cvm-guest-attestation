@@ -708,14 +708,23 @@ bool Util::doSKR(const std::string &attestation_url,
                  const std::string &nonce,
                  std::string KEKUrl,
                  EVP_PKEY **pkey,
-                 const Util::AkvCredentialSource &akv_credential_source)
+                 const Util::AkvCredentialSource &akv_credential_source,
+                 const std::string &external_maa_token
+                )
 {
     TRACE_OUT("Entering Util::doSKR()");
 
     try
     {
-        std::string attest_token(Util::GetMAAToken(attestation_url, nonce));
-        TRACE_OUT("MAA Token: %s", Util::reduct_log(attest_token).c_str());
+        std::string attest_token;
+        if (!external_maa_token.empty()) {
+            TRACE_OUT("Using externally provided MAA token");
+
+            attest_token = external_maa_token;
+        } else {
+            printf("Generating MAA token for SKR\n");
+            attest_token = Util::GetMAAToken(attestation_url, nonce);
+        }
 
         // Get Akv access token either using IMDS or Service Principal
         std::string access_token;
@@ -972,12 +981,14 @@ std::string Util::WrapKey(const std::string &attestation_url,
                           const std::string &nonce,
                           const std::string &sym_key,
                           const std::string &key_enc_key_url,
-                          const Util::AkvCredentialSource &akv_credential_source)
+                          const Util::AkvCredentialSource &akv_credential_source,
+                          const std::string &external_maa_token
+                        )
 {
     TRACE_OUT("Entering Util::WrapKey()");
 
     EVP_PKEY *pkey = nullptr;
-    if (!Util::doSKR(attestation_url, nonce, key_enc_key_url, &pkey, akv_credential_source))
+    if (!Util::doSKR(attestation_url, nonce, key_enc_key_url, &pkey, akv_credential_source, external_maa_token))
     {
         std::cerr << "Failed to release the private key" << std::endl;
         exit(-1);
@@ -1022,12 +1033,14 @@ std::string Util::UnwrapKey(const std::string &attestation_url,
                             const std::string &nonce,
                             const std::string &wrapped_key_base64,
                             const std::string &key_enc_key_url,
-                            const Util::AkvCredentialSource &akv_credential_source)
+                            const Util::AkvCredentialSource &akv_credential_source,
+                            const std::string &external_maa_token
+                        )
 {
     TRACE_OUT("Entering Util::UnwrapKey()");
 
     EVP_PKEY *pkey = nullptr;
-    if (!Util::doSKR(attestation_url, nonce, key_enc_key_url, &pkey, akv_credential_source))
+    if (!Util::doSKR(attestation_url, nonce, key_enc_key_url, &pkey, akv_credential_source, external_maa_token))
     {
         std::cerr << "Failed to release the private key" << std::endl;
         exit(-1);
@@ -1073,12 +1086,14 @@ std::string Util::UnwrapKey(const std::string &attestation_url,
 bool Util::ReleaseKey(const std::string &attestation_url,
                       const std::string &nonce,
                       const std::string &key_enc_key_url,
-                      const Util::AkvCredentialSource &akv_credential_source)
+                      const Util::AkvCredentialSource &akv_credential_source,
+                      const std::string &external_maa_token
+                    )
 {
     TRACE_OUT("Entering Util::ReleaseKey()");
 
     EVP_PKEY *pkey = nullptr;
-    if (!Util::doSKR(attestation_url, nonce, key_enc_key_url, &pkey, akv_credential_source))
+    if (!Util::doSKR(attestation_url, nonce, key_enc_key_url, &pkey, akv_credential_source, external_maa_token))
     {
         std::cerr << "Failed to release the private key" << std::endl;
         return false;

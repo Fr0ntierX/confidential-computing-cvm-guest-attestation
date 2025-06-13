@@ -67,11 +67,12 @@ int main(int argc, char *argv[])
     std::string nonce;
     std::string sym_key;
     std::string key_enc_key_url;
+    std::string external_maa_token;
     Operation op = Operation::None;
     Util::AkvCredentialSource akv_credential_source = Util::AkvCredentialSource::Imds;
 
     int opt;
-    while ((opt = getopt(argc, argv, "a:n:k:c:s:uwr")) != -1)
+    while ((opt = getopt(argc, argv, "a:n:k:c:s:uwrm:")) != -1)
     {
         switch (opt)
         {
@@ -110,6 +111,10 @@ int main(int argc, char *argv[])
             sym_key.assign(optarg);
             TRACE_OUT("sym_key: %s", sym_key.c_str());
             break;
+        case 'm':
+            external_maa_token.assign(optarg);
+            TRACE_OUT("external_maa_token: %s", external_maa_token.c_str());
+            break;
         case 'r':
             op = Operation::ReleaseKey;
             TRACE_OUT("op: %d", static_cast<int>(op));
@@ -131,15 +136,15 @@ int main(int argc, char *argv[])
         switch (op)
         {
         case Operation::WrapKey:
-            result = Util::WrapKey(attestation_url, nonce, sym_key, key_enc_key_url, akv_credential_source);
+            result = Util::WrapKey(attestation_url, nonce, sym_key, key_enc_key_url, akv_credential_source, external_maa_token);
             std::cout << result << std::endl;
             break;
         case Operation::UnwrapKey:
-            result = Util::UnwrapKey(attestation_url, nonce, sym_key, key_enc_key_url, akv_credential_source);
+            result = Util::UnwrapKey(attestation_url, nonce, sym_key, key_enc_key_url, akv_credential_source, external_maa_token);
             std::cout << result << std::endl;
             break;
         case Operation::ReleaseKey:
-            success = Util::ReleaseKey(attestation_url, nonce, key_enc_key_url, akv_credential_source);
+            success = Util::ReleaseKey(attestation_url, nonce, key_enc_key_url, akv_credential_source, external_maa_token);
             retVal = success ? EXIT_SUCCESS : EXIT_FAILURE;
             break;
         default:
