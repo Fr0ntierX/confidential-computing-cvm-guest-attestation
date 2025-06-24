@@ -34,6 +34,9 @@ void usage(char *programName)
     printf("\n");
     printf("\tDecrypt cipher text (VM 2):\n");
     printf("\t\t%s -d <base64-cipher-text> \n", programName);
+    printf("\n");
+    printf("\tGet attestation token:\n");
+    printf("\t\t%s -a <attestation-endpoint> -n <optional-nonce> -g \n", programName);
 }
 
 enum class Operation
@@ -44,6 +47,7 @@ enum class Operation
     ReleaseKey,
     ExtractCipherText,
     DecryptCipherText,
+    GetToken,
     Undefined
 };
 
@@ -81,7 +85,7 @@ int main(int argc, char *argv[])
     Util::AkvCredentialSource akv_credential_source = Util::AkvCredentialSource::Imds;
 
     int opt;
-    while ((opt = getopt(argc, argv, "a:n:k:c:s:uwrm:xd:")) != -1)
+    while ((opt = getopt(argc, argv, "a:n:k:c:s:uwrm:xd:g")) != -1)
     {
         switch (opt)
         {
@@ -138,6 +142,10 @@ int main(int argc, char *argv[])
             TRACE_OUT("cipher_text_base64: %s", cipher_text_base64.c_str());
             TRACE_OUT("op: %d", static_cast<int>(op));
             break;
+        case 'g':
+            op = Operation::GetToken;
+            TRACE_OUT("op: %d", static_cast<int>(op));
+            break;
         case ':':
             std::cerr << "Option needs a value" << std::endl;
             return EXIT_FAILURE;
@@ -172,6 +180,10 @@ int main(int argc, char *argv[])
             break;
         case Operation::DecryptCipherText:
             result = Util::DecryptCipherText(cipher_text_base64);
+            std::cout << result << std::endl;
+            break;
+        case Operation::GetToken:
+            result = Util::GetMAAToken(attestation_url, nonce);
             std::cout << result << std::endl;
             break;
         default:
