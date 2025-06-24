@@ -704,6 +704,188 @@ std::string Util::GetKeyVaultResponse(const std::string &requestUri,
     return responseStr;
 }
 
+/// \copydoc Util::ExtractCipherText()
+bool Util::ExtractCipherText(const std::string &attestation_url,
+                             const std::string &nonce,
+                             const std::string &key_enc_key_url,
+                             const Util::AkvCredentialSource &akv_credential_source,
+                             const std::string &external_maa_token)
+{
+    TRACE_OUT("Entering Util::ExtractCipherText()");
+
+    try
+    {
+        std::string attest_token;
+        if (!external_maa_token.empty()) {
+            TRACE_OUT("Using externally provided MAA token");
+            attest_token = external_maa_token;
+        } else {
+            attest_token = Util::GetMAAToken(attestation_url, nonce);
+        }
+
+        // Get Akv access token either using IMDS or Service Principal
+        std::string access_token;
+        if (akv_credential_source == Util::AkvCredentialSource::EnvServicePrincipal)
+        {
+            access_token = std::move(Util::GetAADToken(key_enc_key_url));
+        }
+        else
+        {
+            access_token = std::move(Util::GetIMDSToken(key_enc_key_url));
+        }
+
+        TRACE_OUT("AkvMsiAccessToken: %s", Util::reduct_log(access_token).c_str());
+
+        std::string requestUri = Util::GetKeyVaultSKRurl(key_enc_key_url);
+        std::string responseStr = Util::GetKeyVaultResponse(requestUri, access_token, attest_token, nonce);
+
+        // Parse the response:
+        json skrJson = json::parse(responseStr.c_str());
+        std::string skrToken = skrJson["value"];
+        TRACE_OUT("SKR token: %s", Util::reduct_log(skrToken).c_str());
+        std::vector<std::string> tokenParts = Util::SplitString(skrToken, '.');
+        if (tokenParts.size() != 3)
+        {
+            TRACE_ERROR_EXIT("Invalid SKR token")
+        }
+
+        std::vector<BYTE> tokenPayload(Util::base64url_to_binary(tokenParts[1]));
+        std::string tokenPayloadStr(tokenPayload.begin(), tokenPayload.end());
+        TRACE_OUT("SKR token payload: %s", Util::reduct_log(tokenPayloadStr).c_str());
+        json skrPayloadJson = json::parse(tokenPayloadStr.c_str());
+        std::vector<BYTE> key_hsm = Util::base64url_to_binary(skrPayloadJson["response"]["key"]["key"]["key_hsm"]);
+        TRACE_OUT("SKR key_hsm: %s", Util::reduct_log(Util::binary_to_base64url(key_hsm)).c_str());
+        json cipherTextJson = json::parse(key_hsm);
+        std::vector<BYTE> cipherText = Util::base64url_to_binary(cipherTextJson["ciphertext"]);
+        
+        // Extract and print the cipher text as base64
+        std::string cipherTextBase64 = Util::binary_to_base64(cipherText);
+        printf(cipherTextBase64.c_str());
+
+        TRACE_OUT("Exiting Util::ExtractCipherText()");
+        return true;
+    }
+    catch (std::exception &e)
+    {
+        printf("Exception occurred in ExtractCipherText. Details - %s\n", e.what());
+        return false;
+    }
+}
+
+/// \copydoc Util::DecryptCipherText()
+bool Util::DecryptCipherText(const std::string &cipherTextBase64)
+{
+    TRACE_OUT("Entering Util::DecryptCipherText()");
+
+    if (cipherTextBase64.empty())
+    {
+        return false;
+    }
+
+    try
+    {
+        // Convert base64 to binary
+        std::vector<BYTE> cipherText = Util::base64_to_binary(cipherTextBase64);
+
+        AttestationClient *attestation_client = nullptr;
+        AttestationLogger *log_handle = new Logger(Util::get_trace());
+
+        // Initialize attestation client
+        if (!Initialize(log_handle, &attestation_client))
+        {
+            printf("Failed to create attestation client object\n");
+            Uninitialize();
+            exit(1);
+        }
+
+        attest::AttestationResult result;
+        int RSASize = 2048;
+        int ModulusSize = RSASize / 8;
+        uint8_t *decryptedAESBytes = nullptr;
+        uint32_t decryptedBytesSize = 0;
+        result = attestation_client->Decrypt(attest::EncryptionType::NONE,
+                                             cipherText.data(),
+                                             ModulusSize,
+                                             NULL,
+                                             0,
+                                             &decryptedAESBytes,
+                                             &decryptedBytesSize,
+                                             attest::RsaScheme::RsaOaep, // mHSM uses RSA-OAEP wrapping
+                                             attest::RsaHashAlg::RsaSha1 // mHSM uses SHA1 hashing
+        );
+        if (result.code_ != attest::AttestationResult::ErrorCode::SUCCESS)
+        {
+            printf("Failed to decrypt the AES key. Error code: %d, TPM error code=%d, Desc=%s\n", static_cast<int>(result.code_), result.tpm_error_code_, result.description_.c_str());
+            exit(1);
+        }
+        else
+        {
+            std::vector<BYTE> decryptedAESBytesVec(decryptedAESBytes, decryptedAESBytes + decryptedBytesSize);
+            TRACE_OUT("Decrypted Transfer key: %s\n", Util::reduct_log(Util::binary_to_base64url(decryptedAESBytesVec)).c_str());
+        }
+
+        // The remaining bytes are the encrypted CMK bytes with the decrypted AES key.
+        // use openssl AES to decrypt the CMK bytes.
+        BYTE private_key[8192];
+        int private_key_len = 0;
+        private_key_len = decrypt_aes_key_unwrap(decryptedAESBytes,
+                                                 cipherText.data() + ModulusSize,
+                                                 (int)(cipherText.size() - ModulusSize),
+                                                 private_key);
+        if (private_key_len == 0)
+        {
+            printf("Failed to decrypt the CMK\n");
+            exit(1);
+        }
+        else
+        {
+            TRACE_OUT("CMK private key has length=%d", private_key_len);
+            std::vector<BYTE> privateKeyVec(private_key, private_key + private_key_len);
+            TRACE_OUT("Decrypted CMK in base64url: %s", Util::reduct_log(Util::binary_to_base64url(privateKeyVec)).c_str());
+            TRACE_OUT("Decrypted CMK in hex: %s", Util::reduct_log(Util::binary_to_hex(privateKeyVec)).c_str());
+
+            // PKCS#8
+            BIO *bio_key = BIO_new_mem_buf(privateKeyVec.data(), (int)privateKeyVec.size());
+            if (!bio_key)
+            {
+                std::cerr << "Error creating memory BIO" << std::endl;
+                exit(-1);
+            }
+            EVP_PKEY *pkey = d2i_PrivateKey_bio(bio_key, NULL);
+            if (!pkey)
+            {
+                // error handling
+                std::cout << "Failed to load the priv key" << std::endl;
+                ERR_print_errors_fp(stderr);
+
+                // input data is not in correct format
+                char buf[120];
+                ERR_error_string(ERR_get_error(), buf);
+                printf("PKCS8 format check failed: %s\n", buf);
+                exit(-1);
+            }
+            BIO_free(bio_key);
+
+            printf(Util::binary_to_base64url(privateKeyVec).c_str());
+            EVP_PKEY_free(pkey);
+            return true;
+        }
+
+        // Cleanup
+        Uninitialize();
+        delete log_handle;
+        log_handle = nullptr;
+    }
+    catch (std::exception &e)
+    {
+        printf("Exception occured. Details - %s", e.what());
+        exit(1);
+    }
+
+    TRACE_OUT("Exiting Util::DecryptCipherText()");
+    return true;
+}
+
 bool Util::doSKR(const std::string &attestation_url,
                  const std::string &nonce,
                  std::string KEKUrl,
@@ -722,7 +904,6 @@ bool Util::doSKR(const std::string &attestation_url,
 
             attest_token = external_maa_token;
         } else {
-            printf("Generating MAA token for SKR\n");
             attest_token = Util::GetMAAToken(attestation_url, nonce);
         }
 

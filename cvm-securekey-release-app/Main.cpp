@@ -28,6 +28,12 @@ void usage(char *programName)
     printf("\n");
     printf("\tRelease RSA key and wrap/unwrap symmetric key:\n");
     printf("\t\t%s -a <attestation-endpoint> -n <optional-nonce> -k KEYURL -c (imds|sp) -s symkey|base64(wrappedSymKey) -w|-u (Wrap|Unwrap) \n", programName);
+    printf("\n");
+    printf("\tExtract encrypted cipher text (for VM transfer):\n");
+    printf("\t\t%s -a <attestation-endpoint> -n <optional-nonce> -k KeyURL -c (imds|sp) -x \n", programName);
+    printf("\n");
+    printf("\tDecrypt cipher text (VM 2):\n");
+    printf("\t\t%s -d <base64-cipher-text> \n", programName);
 }
 
 enum class Operation
@@ -36,6 +42,8 @@ enum class Operation
     WrapKey,
     UnwrapKey,
     ReleaseKey,
+    ExtractCipherText,
+    DecryptCipherText,
     Undefined
 };
 
@@ -68,11 +76,12 @@ int main(int argc, char *argv[])
     std::string sym_key;
     std::string key_enc_key_url;
     std::string external_maa_token;
+    std::string cipher_text_base64;
     Operation op = Operation::None;
     Util::AkvCredentialSource akv_credential_source = Util::AkvCredentialSource::Imds;
 
     int opt;
-    while ((opt = getopt(argc, argv, "a:n:k:c:s:uwrm:")) != -1)
+    while ((opt = getopt(argc, argv, "a:n:k:c:s:uwrm:xd:")) != -1)
     {
         switch (opt)
         {
@@ -119,6 +128,16 @@ int main(int argc, char *argv[])
             op = Operation::ReleaseKey;
             TRACE_OUT("op: %d", static_cast<int>(op));
             break;
+        case 'x':
+            op = Operation::ExtractCipherText;
+            TRACE_OUT("op: %d", static_cast<int>(op));
+            break;
+        case 'd':
+            cipher_text_base64.assign(optarg);
+            op = Operation::DecryptCipherText;
+            TRACE_OUT("cipher_text_base64: %s", cipher_text_base64.c_str());
+            TRACE_OUT("op: %d", static_cast<int>(op));
+            break;
         case ':':
             std::cerr << "Option needs a value" << std::endl;
             return EXIT_FAILURE;
@@ -146,6 +165,14 @@ int main(int argc, char *argv[])
         case Operation::ReleaseKey:
             success = Util::ReleaseKey(attestation_url, nonce, key_enc_key_url, akv_credential_source, external_maa_token);
             retVal = success ? EXIT_SUCCESS : EXIT_FAILURE;
+            break;
+        case Operation::ExtractCipherText:
+            result = Util::ExtractCipherText(attestation_url, nonce, key_enc_key_url, akv_credential_source, external_maa_token);
+            std::cout << result << std::endl;
+            break;
+        case Operation::DecryptCipherText:
+            result = Util::DecryptCipherText(cipher_text_base64);
+            std::cout << result << std::endl;
             break;
         default:
             usage(argv[0]);

@@ -314,4 +314,27 @@ public:
                            const Util::AkvCredentialSource &akv_credential_source,
                            const std::string &external_maa_token = ""
                         );
+
+    /// <summary>
+    /// Extract encrypted cipher text from Key Vault without decrypting (for VM transfer).
+    /// </summary>
+    /// <param name="attestation_url">Attestation service URL.</param>
+    /// <param name="nonce">unique nonce per attestation request.</param>
+    /// <param name="key_enc_key_url">Key encryption key URL</param>
+    /// <param name="akv_credential_source">AkvCredentialSource type for accessing Key Vault</param>
+    /// <param name="external_maa_token">Optional external MAA token to use</param>
+    /// <returns>True if successful, False otherwise</returns>
+    static bool ExtractCipherText(const std::string &attestation_url,
+                                  const std::string &nonce,
+                                  const std::string &key_enc_key_url,
+                                  const Util::AkvCredentialSource &akv_credential_source,
+                                  const std::string &external_maa_token = ""
+                                );
+
+    /// <summary>
+    /// Decrypt cipher text from base64 string using TPM (VM 2 operation).
+    /// </summary>
+    /// <param name="cipherTextBase64">Base64-encoded cipher text from VM 1</param>
+    /// <returns>True if successful, False otherwise</returns>
+    static bool DecryptCipherText(const std::string &cipherTextBase64);
 };
