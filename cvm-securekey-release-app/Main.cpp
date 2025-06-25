@@ -29,10 +29,10 @@ void usage(char *programName)
     printf("\tRelease RSA key and wrap/unwrap symmetric key:\n");
     printf("\t\t%s -a <attestation-endpoint> -n <optional-nonce> -k KEYURL -c (imds|sp) -s symkey|base64(wrappedSymKey) -w|-u (Wrap|Unwrap) \n", programName);
     printf("\n");
-    printf("\tExtract encrypted cipher text (for VM transfer):\n");
-    printf("\t\t%s -a <attestation-endpoint> -n <optional-nonce> -k KeyURL -c (imds|sp) -x \n", programName);
+    printf("\tRelease RSA key or EC key without decrypting released cipher text:\n");
+    printf("\t\t%s -a <attestation-endpoint> -n <optional-nonce> -k KeyURL -c (imds|sp) -x -m <optional-maa-token> \n", programName);
     printf("\n");
-    printf("\tDecrypt cipher text (VM 2):\n");
+    printf("\tDecrypt cipher text:\n");
     printf("\t\t%s -d <base64-cipher-text> \n", programName);
     printf("\n");
     printf("\tGet attestation token:\n");
